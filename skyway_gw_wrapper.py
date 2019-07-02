@@ -7,10 +7,14 @@ import urllib.request
 import time
 import inspect
 
-# SkyWayGatewayWrapper
-#   process management(keepalive, restart)
-#     gateway_linux_arm
-#     gst-launch-1.0
+'''
+SkyWayGatewayWrapper
+  process management(keepalive, restart)
+    gateway_linux_arm
+    gst-launch-1.0
+'''
+
+
 class SkyWayGatewayWrapper(object):
     def __init__(self, key, domain, path):
         if not os.path.exists(path):
@@ -29,8 +33,10 @@ class SkyWayGatewayWrapper(object):
             self.__gateway = "gateway"
             self.__gstreamer = "gstreamer"
             self.__threads = {self.__gateway: None, self.__gstreamer: None}
-            self.__threads_stop_flag = {self.__gateway: False, self.__gstreamer: False}
-            self.__subprocesses = {self.__gateway: None, self.__gstreamer: None}
+            self.__threads_stop_flag = {self.__gateway: False,
+                                        self.__gstreamer: False}
+            self.__subprocesses = {self.__gateway: None,
+                                   self.__gstreamer: None}
 
     @property
     def gw_observer_thread(self):
@@ -90,25 +96,27 @@ class SkyWayGatewayWrapper(object):
         self.gst_subprocess = process
 
     def __observer(self, key, setter, cmd):
-        setter(subprocess.Popen(args = shlex.split(cmd)))
+        setter(subprocess.Popen(args=shlex.split(cmd)))
         while True:
             time.sleep(1)
-            if self.__threads[key] == None or self.__threads_stop_flag[key] or self.__subprocesses[key] == None:
+            if not self.__threads[key] or \
+               self.__threads_stop_flag[key] or \
+               not self.__subprocesses[key]:
                 self.__threads_stop_flag[key] = False
                 break
             status = self.__subprocesses[key].poll()
-            if status == None:
+            if not status:
                 continue
             elif status == 0:
                 break
             else:
-                setter(subprocess.Popen(args = shlex.split(cmd)))
+                setter(subprocess.Popen(args=shlex.split(cmd)))
 
     def __peer_events_observer(self, peer_id):
         print(inspect.currentframe().f_code.co_name)
         url = self.base_url + "peers/%s/events?token=%s" % (peer_id, self.peers[peer_id])
         headers = {"accept": "application/json"}
-        request = urllib.request.Request(url, headers = headers, method = "GET")
+        request = urllib.request.Request(url, headers=headers, method="GET")
 
         while True:
             try:
@@ -145,9 +153,9 @@ class SkyWayGatewayWrapper(object):
         _data = json.dumps(data).encode(),
         print(_data)
         request = urllib.request.Request(url,
-                                         data = json.dumps(data).encode(),
-                                         headers = headers,
-                                         method = "POST")
+                                         data=json.dumps(data).encode(),
+                                         headers=headers,
+                                         method="POST")
 
         try:
             with urllib.request.urlopen(request) as response:
@@ -163,11 +171,11 @@ class SkyWayGatewayWrapper(object):
 
     def start_gateway(self):
         setter = (lambda x: self._set_gw_subprocess(x))
-        self.gw_observer_thread = threading.Thread(target = self.__observer,
-                                                   args = (self.__gateway, setter, self.gw_cmd))
+        self.gw_observer_thread = threading.Thread(target=self.__observer,
+                                                   args=(self.__gateway, setter, self.gw_cmd))
         self.gw_observer_thread.start()
 
-    def peer(self, peer_id = None):
+    def peer(self, peer_id=None):
         url = self.base_url + "peers"
         data = {"key": self.key,
                 "domain": self.domain}
@@ -176,9 +184,9 @@ class SkyWayGatewayWrapper(object):
         headers = {"accept": "application/json",
                    "Content-Type": "application/json"}
         request = urllib.request.Request(url,
-                                         data = json.dumps(data).encode(),
-                                         headers = headers,
-                                         method = "POST")
+                                         data=json.dumps(data).encode(),
+                                         headers=headers,
+                                         method="POST")
 
         try:
             with urllib.request.urlopen(request) as response:
@@ -186,8 +194,8 @@ class SkyWayGatewayWrapper(object):
                 peer_id = json_response["params"]["peer_id"]
                 self.peers[peer_id] = json_response["params"]["token"]
 
-                self.__threads[peer_id] = threading.Thread(target = self.__peer_events_observer,
-                                                           args = (peer_id,))
+                self.__threads[peer_id] = threading.Thread(target=self.__peer_events_observer,
+                                                           args=(peer_id,))
                 self.__threads[peer_id].start()
 
                 return peer_id
@@ -195,7 +203,7 @@ class SkyWayGatewayWrapper(object):
             raise RuntimeError(error)
         except urllib.error.URLError as error:
             raise RuntimeError(error)
-    
+
     def open_video(self):
         data = {"is_video": True}
         return self.__media(data)
@@ -209,9 +217,9 @@ class SkyWayGatewayWrapper(object):
         headers = {"accept": "application/json",
                    "Content-Type": "application/json"}
         request = urllib.request.Request(url,
-                                         data = json.dumps(data).encode(),
-                                         headers = headers,
-                                         method = "POST")
+                                         data=json.dumps(data).encode(),
+                                         headers=headers,
+                                         method="POST")
 
         try:
             with urllib.request.urlopen(request) as response:
@@ -230,12 +238,12 @@ class SkyWayGatewayWrapper(object):
 
     def start_streaming(self,
                         media_id,
-                        width = "1280",
-                        height = "720",
-                        framerate = "30",
-                        bitrate = "10000000",
-                        codec = "h264",
-                        videoflip = "none"):
+                        width="1280",
+                        height="720",
+                        framerate="30",
+                        bitrate="10000000",
+                        codec="h264",
+                        videoflip="none"):
         ip, port = self.medias[media_id]
 
         self.video_params["width"] = width
@@ -265,9 +273,10 @@ multiudpsink clients=%s:%s""" % (videoflip, width, height, framerate, bitrate, e
         self.gst_cmd = cmd
 
         setter = (lambda x: self._set_gst_subprocess(x))
-        self.gst_observer_thread = threading.Thread(target = self.__observer,
-                                                    args = (self.__gstreamer, setter, self.gst_cmd))
+        self.gst_observer_thread = threading.Thread(target=self.__observer,
+                                                    args=(self.__gstreamer, setter, self.gst_cmd))
         self.gst_observer_thread.start()
+
 
 if __name__ == "__main__":
     key = "api-key"
@@ -279,6 +288,6 @@ if __name__ == "__main__":
     print(media_id)
     gw_wrapper.start_streaming(media_id)
     gw_wrapper.media_id = media_id
-    peer_id = gw_wrapper.peer(peer_id = "test")
+    peer_id = gw_wrapper.peer(peer_id="test")
     print(peer_id)
     gw_wrapper.gw_observer_thread.join()

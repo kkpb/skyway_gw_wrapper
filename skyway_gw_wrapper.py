@@ -46,8 +46,8 @@ class SkyWayGatewayWrapper(object):
     def gw_observer_thread(self, thread):
         print("set gw_observer_process")
         if self.gw_observer_thread:
-            self.gw_subprocess = None
             self.__threads_stop_flag[self.__gateway] = True
+            self.gw_observer_thread.join()
         self.__threads[self.__gateway] = thread
 
     @property
@@ -61,7 +61,8 @@ class SkyWayGatewayWrapper(object):
         if self.gst_observer_thread:
             self.gst_observer_thread = None
         if self.gw_subprocess:
-            self.gw_subprocess.kill()
+            self.__threads_stop_flag[self.__gateway] = True
+            self.gw_subprocess.wait()
         self.peers = {}
         self.medias = {}
         self.__subprocesses[self.__gateway] = process
@@ -77,8 +78,8 @@ class SkyWayGatewayWrapper(object):
     def gst_observer_thread(self, thread):
         print("set gst_observer_process")
         if self.gst_observer_thread:
-            self.gst_subprocess = None
             self.__threads_stop_flag[self.__gstreamer] = True
+            self.gst_observer_thread.join()
         self.__threads[self.__gstreamer] = thread
 
     @property
@@ -89,23 +90,26 @@ class SkyWayGatewayWrapper(object):
     def gst_subprocess(self, process):
         print("set gst_subprocess")
         if self.gst_subprocess:
-            self.gst_subprocess.kill()
+            self.__threads_stop_flag[self.__gstreamer] = True
+            self.gst_subprocess.wait()
         self.__subprocesses[self.__gstreamer] = process
 
     def _set_gst_subprocess(self, process):
         self.gst_subprocess = process
 
     def __observer(self, key, setter, cmd):
-        setter(subprocess.Popen(args=shlex.split(cmd)))
         while True:
-            time.sleep(1)
-            if not self.__threads[key] or \
-               self.__threads_stop_flag[key] or \
-               not self.__subprocesses[key]:
+            if self.__threads_stop_flag[key]:
+                self.__subprocesses[key].terminate()
+                self.__subprocesses[key].wait()
+                self.__threads[key] = None
+                self.__subprocesses[key] = None
                 self.__threads_stop_flag[key] = False
                 break
+
             status = self.__subprocesses[key].poll()
             if not status:
+                time.sleep(1)
                 continue
             elif status == 0:
                 break
@@ -114,11 +118,16 @@ class SkyWayGatewayWrapper(object):
 
     def __peer_events_observer(self, peer_id):
         print(inspect.currentframe().f_code.co_name)
+        self.__threads_stop_flag[peer_id] = False
+
         url = self.base_url + "peers/%s/events?token=%s" % (peer_id, self.peers[peer_id])
         headers = {"accept": "application/json"}
         request = urllib.request.Request(url, headers=headers, method="GET")
 
         while True:
+            if self.__threads_stop_flag[peer_id]:
+                del self.__threads_stop_flag[peer_id]
+                break
             try:
                 with urllib.request.urlopen(request) as response:
                     json_response = json.loads(response.read().decode("utf8"))
@@ -170,9 +179,9 @@ class SkyWayGatewayWrapper(object):
             print(error)
 
     def start_gateway(self):
-        setter = (lambda x: self._set_gw_subprocess(x))
+        self.gw_subprocess = subprocess.Popen(args=shlex.split(self.gw_cmd))
         self.gw_observer_thread = threading.Thread(target=self.__observer,
-                                                   args=(self.__gateway, setter, self.gw_cmd))
+                                                   args=(self.__gateway, self._set_gw_subprocess, self.gw_cmd))
         self.gw_observer_thread.start()
 
     def peer(self, peer_id=None):
@@ -272,16 +281,16 @@ multiudpsink clients=%s:%s""" % (videoflip, width, height, framerate, bitrate, e
         print(cmd)
         self.gst_cmd = cmd
 
-        setter = (lambda x: self._set_gst_subprocess(x))
+        self.gst_subprocess = subprocess.Popen(args=shlex.split(self.gst_cmd))
         self.gst_observer_thread = threading.Thread(target=self.__observer,
-                                                    args=(self.__gstreamer, setter, self.gst_cmd))
+                                                    args=(self.__gstreamer, self._set_gst_subprocess, self.gst_cmd))
         self.gst_observer_thread.start()
 
 
 if __name__ == "__main__":
-    key = "api-key"
-    domain = "domain"
-    path = "gatewaypath"
+    key = os.environ['APIKEY']
+    domain = os.environ['DOMAIN']
+    path = os.environ['GATEWAY_PATH']
     gw_wrapper = SkyWayGatewayWrapper(key, domain, path)
     gw_wrapper.start_gateway()
     media_id = gw_wrapper.open_video()

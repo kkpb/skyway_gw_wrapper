@@ -23,7 +23,7 @@ class SkyWayGatewayWrapper(object):
             self.key = key
             self.domain = domain
             self.path = path
-            self.gw_cmd = "./%s" % self.path
+            self.gw_cmd = os.path.abspath(self.path)
             self.gst_cmd = None
             self.base_url = "http://127.0.0.1:8000/"
             self.peers = {}
@@ -299,4 +299,4 @@ if __name__ == "__main__":
     gw_wrapper.media_id = media_id
     peer_id = gw_wrapper.peer(peer_id="test")
     print(peer_id)
-    gw_wrapper.gw_observer_thread.join()
+    gw_wrapper.gst_observer_thread.join()

@@ -1,6 +1,6 @@
 skyway_gw_wrapper
 ====================
-
+[![Build Status](https://travis-ci.org/kkpb/skyway_gw_wrapper.svg?branch=master)](https://travis-ci.org/kkpb/skyway_gw_wrapper)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 - `skyway-webrtc-gateway`, `GStreamer` のプロセス管理
